@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IELTS Writing Practice Interface</title>
+    <style>
+        :root {
+            --ielts-blue: #003057;
+            --ielts-grey: #f4f4f4;
+            --ielts-border: #cccccc;
+            --ielts-header: #333333;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background-color: var(--ielts-grey);
+        }
+
+        /* Top Header */
+        header {
+            background-color: var(--ielts-header);
+            color: white;
+            padding: 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .timer-box {
+            background-color: #000;
+            padding: 8px 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #start-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 4px 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        #start-btn:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        /* Main Workspace */
+        main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            border-top: 2px solid var(--ielts-border);
+        }
+
+        /* Left Side: Question */
+        .prompt-section {
+            width: 50%;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #fff;
+            border-right: 2px solid var(--ielts-border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .question-text-area {
+            font-size: 15px;
+            margin-bottom: 20px;
+            line-height: 1.4;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+
+        .image-container {
+            width: 100%;
+            text-align: center;
+        }
+
+        .image-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            display: none; /* Hidden until upload */
+        }
+
+        .upload-controls {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f9f9f9;
+            border: 1px dashed #ccc;
+        }
+
+        /* Right Side: Writing */
+        .writing-section {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+        }
+
+        .writing-area {
+            flex: 1;
+            padding: 20px;
+            font-size: 16px;
+            line-height: 1.6;
+            border: none;
+            outline: none;
+            resize: none;
+            font-family: Arial, sans-serif;
+        }
+
+        /* Footer */
+        footer {
+            height: 50px;
+            background-color: var(--ielts-grey);
+            border-top: 1px solid var(--ielts-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+
+        .task-nav button {
+            padding: 8px 20px;
+            border: 1px solid var(--ielts-border);
+            background: #e0e0e0;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .task-nav button.active {
+            background: var(--ielts-blue);
+            color: white;
+            border-color: var(--ielts-blue);
+        }
+
+        .word-count {
+            font-weight: bold;
+            color: #444;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div><strong>IELTS Writing Practice</strong></div>
+        <div class="timer-box">
+            <button id="start-btn" onclick="startTest()">START TEST</button>
+            <span id="timer-display">60:00</span>
+        </div>
+        <div style="font-size: 12px; color: #ccc;">Candidate: 101DC7</div>
+    </header>
+
+    <main>
+        <section class="prompt-section">
+            <div class="upload-controls">
+                <small>Upload your graph/question screenshot:</small><br>
+                <input type="file" id="image-input" accept="image/*" onchange="previewImage(event)">
+            </div>
+
+            <div class="question-text-area">
+                <h3 id="task-label">Writing Task 1</h3>
+                <div id="editable-question" contenteditable="true" style="border: 1px solid #eee; padding: 10px; min-height: 50px;">
+                    Click here to paste your question text...
+                </div>
+            </div>
+
+            <div class="image-container">
+                <img id="task-image" src="" alt="Task Visual">
+            </div>
+        </section>
+
+        <section class="writing-section">
+            <textarea 
+                id="writing-area" 
+                class="writing-area" 
+                placeholder="Type your response here..."
+                spellcheck="false" 
+                autocomplete="off" 
+                autocorrect="off" 
+                autocapitalize="off"
+                disabled
+            ></textarea>
+        </section>
+    </main>
+
+    <footer>
+        <div class="task-nav">
+            <button id="btn-task1" class="active" onclick="switchTask(1)">Task 1</button>
+            <button id="btn-task2" onclick="switchTask(2)">Task 2</button>
+        </div>
+        <div class="word-count">
+            Word count: <span id="word-count-num">0</span>
+        </div>
+    </footer>
+
+    <script>
+        let currentTask = 1;
+        let task1Data = { text: "", img: "", question: "Click here to paste your question text..." };
+        let task2Data = { text: "", img: "", question: "Click here to paste your question text..." };
+        
+        let timeLeft = 60 * 60;
+        let timerRunning = false;
+        let timerInterval;
+
+        const textArea = document.getElementById('writing-area');
+        const wordCountDisplay = document.getElementById('word-count-num');
+        const timerDisplay = document.getElementById('timer-display');
+        const taskImage = document.getElementById('task-image');
+        const editableQuestion = document.getElementById('editable-question');
+
+        function startTest() {
+            if (timerRunning) return;
+            timerRunning = true;
+            textArea.disabled = false;
+            textArea.focus();
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('start-btn').innerText = "RUNNING";
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                let mins = Math.floor(timeLeft / 60);
+                let secs = timeLeft % 60;
+                timerDisplay.innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    textArea.disabled = true;
+                    alert("Time is up!");
+                }
+            }, 1000);
+        }
+
+        function previewImage(event) {
+            const reader = new FileReader();
+            reader.onload = function() {
+                taskImage.src = reader.result;
+                taskImage.style.display = 'block';
+                // Save to current task object
+                if (currentTask === 1) task1Data.img = reader.result;
+                else task2Data.img = reader.result;
+            }
+            reader.readAsDataURL(event.target.files[0]);
+        }
+
+        textArea.addEventListener('input', () => {
+            const text = textArea.value.trim();
+            const count = text ? text.split(/\s+/).length : 0;
+            wordCountDisplay.innerText = count;
+            
+            if (currentTask === 1) task1Data.text = textArea.value;
+            else task2Data.text = textArea.value;
+        });
+
+        // Save question text changes
+        editableQuestion.addEventListener('input', () => {
+            if (currentTask === 1) task1Data.question = editableQuestion.innerHTML;
+            else task2Data.question = editableQuestion.innerHTML;
+        });
+
+        function switchTask(taskNumber) {
+            // Save current state before switching
+            if (currentTask === 1) {
+                task1Data.text = textArea.value;
+                task1Data.question = editableQuestion.innerHTML;
+            } else {
+                task2Data.text = textArea.value;
+                task2Data.question = editableQuestion.innerHTML;
+            }
+
+            currentTask = taskNumber;
+
+            // Update UI
+            document.getElementById('btn-task1').classList.toggle('active', taskNumber === 1);
+            document.getElementById('btn-task2').classList.toggle('active', taskNumber === 2);
+            document.getElementById('task-label').innerText = `Writing Task ${taskNumber}`;
+            
+            const currentData = taskNumber === 1 ? task1Data : task2Data;
+            
+            textArea.value = currentData.text;
+            editableQuestion.innerHTML = currentData.question;
+            
+            if (currentData.img) {
+                taskImage.src = currentData.img;
+                taskImage.style.display = 'block';
+            } else {
+                taskImage.style.display = 'none';
+            }
+
+            // Trigger word count update
+            const text = textArea.value.trim();
+            wordCountDisplay.innerText = text ? text.split(/\s+/).length : 0;
+        }
+    </script>
+</body>
+</html>
